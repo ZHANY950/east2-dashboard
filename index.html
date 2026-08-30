@@ -506,7 +506,7 @@ table.freeze-dm th:first-child,table.freeze-dm td:first-child{box-shadow:2px 0 4
     </section>
   </main>
 </div>
-<script src="data.js?v=202608302032"></script>
+<script src="data.js?v=202608302059"></script>
 <script>
 const D = window.__DASH || {refreshed_at:"(数据文件 data.js 未加载，请刷新页面重试)"};
 const CONCEPTS=["不管不治","阶梯治疗","止痛优选","短期治痛","治痛管理","资深治痛管理","治痛管理大师"];
@@ -1057,21 +1057,40 @@ function pioOpen(){
 function pioIdb(mode,fn){
   return pioOpen().then(db=>new Promise((res,rej)=>{
     const tx=db.transaction(PIO_STORE,mode);
-    fn(tx.objectStore(PIO_STORE));
-    tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error);
+    const req=fn(tx.objectStore(PIO_STORE));
+    let out=undefined;
+    // ⚠️ 关键：只读事务的 get() 结果不会自动传给 tx.oncomplete，必须监听 IDBRequest.onsuccess 取 result
+    if(req&&typeof req==="object"&&"result" in req)req.onsuccess=()=>{out=req.result;};
+    tx.oncomplete=()=>res(out);tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error);
   }));
 }
 async function pioLoad(){
   try{const v=await pioIdb("readonly",st=>st.get("list"));if(Array.isArray(v)&&v.length)pioList=v;}catch(e){}
   if(!pioList||!pioList.length){
+    // 降级1：v3.5 之前存在 localStorage 的旧数据 → 读回并迁入 IndexedDB
     try{
       const s=localStorage.getItem(PIO_KEY);
       if(s){const old=JSON.parse(s);if(Array.isArray(old)&&old.length){pioList=old;pioSave();}}
       localStorage.removeItem(PIO_KEY);
     }catch(e){}
   }
+  if(!pioList||!pioList.length){
+    // 降级2：IndexedDB 不可用（如部分浏览器 file:// 环境）时的兜底备份键
+    try{
+      const s=localStorage.getItem(PIO_KEY+"_bak");
+      if(s){const bk=JSON.parse(s);if(Array.isArray(bk)&&bk.length)pioList=bk;}
+    }catch(e){}
+  }
   if(!pioList||!pioList.length)pioList=pioDefaults();
   pioRender();
+}
+/* IndexedDB 不可用时的兜底：同步写一份到 localStorage（>4MB 时放弃，仅保底不主用） */
+function pioBackup(){
+  try{
+    const s=JSON.stringify(pioList);
+    if(s.length<4*1024*1024)localStorage.setItem(PIO_KEY+"_bak",s);
+    else localStorage.removeItem(PIO_KEY+"_bak");
+  }catch(e){}
 }
 function pioRender(){
   const g=document.getElementById("pio-grid");if(!g)return;
@@ -1079,8 +1098,18 @@ function pioRender(){
   g.innerHTML=pioList.map((p,i)=>'<div class="pio-card"><img src="'+p.img+'" alt=""><div class="pio-cap"><span>'+(p.cap||("图片"+(i+1)))+'</span><span class="pio-del" onclick="pioDel('+i+')">✕ 删除</span></div></div>').join("");
 }
 async function pioSave(){
-  try{await pioIdb("readwrite",st=>st.put(pioList,"list"));}
-  catch(e){alert("保存失败："+((e&&e.message)||"IndexedDB 写入异常"));}
+  try{
+    await pioIdb("readwrite",st=>st.put(pioList,"list"));
+    pioBackup();
+  }catch(e){
+    // IndexedDB 不可用 → 退回 localStorage 兜底（容量有限，超出时提示）
+    try{
+      const s=JSON.stringify(pioList);
+      localStorage.setItem(PIO_KEY+"_bak",s);
+    }catch(e2){
+      alert("保存失败：本机存储不可用或空间不足。\n建议用 Chrome/Edge 打开（Safari 在 file:// 下会限制本地存储）。");
+    }
+  }
 }
 function pioDel(i){pioList.splice(i,1);pioSave();pioRender();}
 function pioCompress(dataUrl){
@@ -1106,6 +1135,7 @@ function pioCompress(dataUrl){
 function pioUpload(inp){
   const fs=[...inp.files];inp.value="";
   if(!fs.length)return;
+  if(!Array.isArray(pioList))pioList=pioDefaults();  // 防 pioLoad 异步未完成的竞态
   let chain=Promise.resolve();
   fs.forEach(f=>{chain=chain.then(()=>new Promise(res=>{const r=new FileReader();
     r.onload=()=>{pioCompress(r.result).then(out=>{pioList.push({cap:f.name.replace(/\.[^.]+$/,""),img:out});res();});};
@@ -1113,9 +1143,9 @@ function pioUpload(inp){
   chain.then(()=>{pioSave();pioRender();});
 }
 async function pioReset(){
-  try{localStorage.removeItem(PIO_KEY);}catch(e){}
+  try{localStorage.removeItem(PIO_KEY);localStorage.removeItem(PIO_KEY+"_bak");}catch(e){}
   try{await pioIdb("readwrite",st=>st.delete("list"));}catch(e){}
-  pioList=pioDefaults();pioRender();
+  pioList=pioDefaults();pioSave();pioRender();
 }
 /* ---------- 导出 ---------- */
 function exportCsv(which){
