@@ -506,7 +506,7 @@ table.freeze-dm th:first-child,table.freeze-dm td:first-child{box-shadow:2px 0 4
     </section>
   </main>
 </div>
-<script src="data.js?v=202608302020"></script>
+<script src="data.js?v=202608302028"></script>
 <script>
 const D = window.__DASH || {refreshed_at:"(数据文件 data.js 未加载，请刷新页面重试)"};
 const CONCEPTS=["不管不治","阶梯治疗","止痛优选","短期治痛","治痛管理","资深治痛管理","治痛管理大师"];
@@ -881,12 +881,12 @@ function renderM3(){
   const weekly=w.weekly[dm]||[];
   const td=w.trend_daily[dm]||[];
   const tw=w.trend_weekly_full[dm]||[];
-  // 周均柱放在每周一（周末 TTH 已并入周一）
-  const monIdx=(w.mondays||[]).map(m=>w.labels.indexOf(m)).filter(i=>i>=0);
+  // 周均柱放在每周五（周均=周一至周五平均，周末 TTH 已并入下周一）
+  const friIdx=(w.fridays||w.mondays||[]).map(m=>w.labels.indexOf(m)).filter(i=>i>=0);
   const barData=w.labels.map((_,i)=>null);
-  monIdx.forEach((idx,i)=>{if(idx<barData.length&&i<weekly.length)barData[idx]=weekly[i];});
+  friIdx.forEach((idx,i)=>{if(idx<barData.length&&i<weekly.length)barData[idx]=weekly[i];});
   const twBar=w.labels.map((_,i)=>null);
-  monIdx.forEach((idx,i)=>{if(idx<twBar.length)twBar[idx]=(w.trend_weekly[dm]||[])[i];});
+  friIdx.forEach((idx,i)=>{if(idx<twBar.length)twBar[idx]=(w.trend_weekly[dm]||[])[i];});
   const fmtLab=v=>v!=null?Math.round(v):'';
   mkChart("c-m3",{
     type:"bar",
