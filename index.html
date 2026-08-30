@@ -427,7 +427,7 @@ table.freeze-dm th:first-child,table.freeze-dm td:first-child{box-shadow:2px 0 4
       <!-- ⑦ 先锋展示 -->
       <div class="mod" id="mod-7" style="display:none">
       <div class="card">
-        <div class="c-title">⑦ 先锋展示 <span class="tag">图片存本机 localStorage · 可上传/删除/恢复默认</span>
+        <div class="c-title">⑦ 先锋展示 <span class="tag">图片存本机 IndexedDB · 数量不限 · 可上传/删除/恢复默认</span>
           <span style="flex:1"></span>
           <button class="btn" onclick="document.getElementById('pio-file').click()">＋ 上传图片</button>
           <input type="file" id="pio-file" accept="image/*" multiple style="display:none" onchange="pioUpload(this)">
@@ -506,7 +506,7 @@ table.freeze-dm th:first-child,table.freeze-dm td:first-child{box-shadow:2px 0 4
     </section>
   </main>
 </div>
-<script src="data.js?v=202608302028"></script>
+<script src="data.js?v=202608302032"></script>
 <script>
 const D = window.__DASH || {refreshed_at:"(数据文件 data.js 未加载，请刷新页面重试)"};
 const CONCEPTS=["不管不治","阶梯治疗","止痛优选","短期治痛","治痛管理","资深治痛管理","治痛管理大师"];
@@ -1041,31 +1041,82 @@ function setM6Tab(tab){
   document.getElementById("m6-emp").style.display=tab==="emp"?"block":"none";
   document.getElementById("m6-cust").style.display=tab==="cust"?"block":"none";
 }
-/* ---------- ⑦ 先锋展示 ---------- */
+/* ---------- ⑦ 先锋展示（IndexedDB 存储，数量不限） ---------- */
 const PIO_KEY="dzdk_pio_v1";
+const PIO_DB="dzdk_pio_db",PIO_STORE="pio";
 let pioList=null;
 function pioDefaults(){return (V.pio||[]).map(p=>({cap:p.cap,img:p.img}));}
-function pioLoad(){
-  try{const s=localStorage.getItem(PIO_KEY);if(s){pioList=JSON.parse(s);}}catch(e){}
+function pioOpen(){
+  return new Promise((res,rej)=>{
+    const rq=indexedDB.open(PIO_DB,1);
+    rq.onupgradeneeded=()=>{if(!rq.result.objectStoreNames.contains(PIO_STORE))rq.result.createObjectStore(PIO_STORE);};
+    rq.onsuccess=()=>res(rq.result);
+    rq.onerror=()=>rej(rq.error);
+  });
+}
+function pioIdb(mode,fn){
+  return pioOpen().then(db=>new Promise((res,rej)=>{
+    const tx=db.transaction(PIO_STORE,mode);
+    fn(tx.objectStore(PIO_STORE));
+    tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error);
+  }));
+}
+async function pioLoad(){
+  try{const v=await pioIdb("readonly",st=>st.get("list"));if(Array.isArray(v)&&v.length)pioList=v;}catch(e){}
+  if(!pioList||!pioList.length){
+    try{
+      const s=localStorage.getItem(PIO_KEY);
+      if(s){const old=JSON.parse(s);if(Array.isArray(old)&&old.length){pioList=old;pioSave();}}
+      localStorage.removeItem(PIO_KEY);
+    }catch(e){}
+  }
   if(!pioList||!pioList.length)pioList=pioDefaults();
+  pioRender();
 }
 function pioRender(){
   const g=document.getElementById("pio-grid");if(!g)return;
   if(!pioList||!pioList.length){g.innerHTML='<div class="empty">暂无图片，点击右上角「上传图片」添加</div>';return;}
   g.innerHTML=pioList.map((p,i)=>'<div class="pio-card"><img src="'+p.img+'" alt=""><div class="pio-cap"><span>'+(p.cap||("图片"+(i+1)))+'</span><span class="pio-del" onclick="pioDel('+i+')">✕ 删除</span></div></div>').join("");
 }
-function pioSave(){try{localStorage.setItem(PIO_KEY,JSON.stringify(pioList));}catch(e){alert("保存失败：图片总量超出本机存储上限，请删减后重试");}}
+async function pioSave(){
+  try{await pioIdb("readwrite",st=>st.put(pioList,"list"));}
+  catch(e){alert("保存失败："+((e&&e.message)||"IndexedDB 写入异常"));}
+}
 function pioDel(i){pioList.splice(i,1);pioSave();pioRender();}
+function pioCompress(dataUrl){
+  return new Promise(res=>{
+    try{
+      if(dataUrl.length<1.5*1024*1024){res(dataUrl);return;}
+      const img=new Image();
+      img.onload=()=>{
+        try{
+          const MAX=2400;let w=img.width,h=img.height;
+          if(Math.max(w,h)>MAX){const k=MAX/Math.max(w,h);w=Math.round(w*k);h=Math.round(h*k);}
+          const cv=document.createElement("canvas");cv.width=w;cv.height=h;
+          cv.getContext("2d").drawImage(img,0,0,w,h);
+          const out=cv.toDataURL("image/jpeg",0.9);
+          res(out.length<dataUrl.length?out:dataUrl);
+        }catch(e){res(dataUrl);}
+      };
+      img.onerror=()=>res(dataUrl);
+      img.src=dataUrl;
+    }catch(e){res(dataUrl);}
+  });
+}
 function pioUpload(inp){
   const fs=[...inp.files];inp.value="";
   if(!fs.length)return;
   let chain=Promise.resolve();
   fs.forEach(f=>{chain=chain.then(()=>new Promise(res=>{const r=new FileReader();
-    r.onload=()=>{pioList.push({cap:f.name.replace(/\.[^.]+$/,""),img:r.result});res();};
+    r.onload=()=>{pioCompress(r.result).then(out=>{pioList.push({cap:f.name.replace(/\.[^.]+$/,""),img:out});res();});};
     r.onerror=res;r.readAsDataURL(f);}))});
   chain.then(()=>{pioSave();pioRender();});
 }
-function pioReset(){try{localStorage.removeItem(PIO_KEY);}catch(e){}pioList=pioDefaults();pioRender();}
+async function pioReset(){
+  try{localStorage.removeItem(PIO_KEY);}catch(e){}
+  try{await pioIdb("readwrite",st=>st.delete("list"));}catch(e){}
+  pioList=pioDefaults();pioRender();
+}
 /* ---------- 导出 ---------- */
 function exportCsv(which){
   if(which==="region244"){
