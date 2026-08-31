@@ -22,12 +22,14 @@ import os
 import shutil
 import subprocess
 import sys
+import glob as _glob
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "sources")
 BUILD = "/tmp/east2_build"
 PY = sys.executable
 
+_ddd = sorted(_glob.glob(os.path.join(SRC, "TOPCORE医院DDD*.xlsx")))
 env = dict(os.environ)
 env.update({
     "EAST2_SRC": SRC,                                     # 中间缓存/输出都走 sources/
@@ -37,6 +39,7 @@ env.update({
     "EAST2_TMPL": os.path.join(ROOT, "pipeline", "dashboard.html"),
     "EAST2_OUT": os.path.join(BUILD, "dashboard.html"),   # 本地版产物（中间产物）
     "EAST2_LIB_DIR": os.path.join(ROOT, "vendor"),        # Chart.js 库
+    "EAST2_DDD": _ddd[-1] if _ddd else "",                # 重点医院概览数据源
 })
 
 
@@ -68,7 +71,15 @@ def main():
     # build_web 产物: index.html + index_data.js → 拷为仓库根 index.html + data.js
     shutil.copy(os.path.join(BUILD, "index.html"), os.path.join(ROOT, "index.html"))
     shutil.copy(os.path.join(BUILD, "index_data.js"), os.path.join(ROOT, "data.js"))
-    print("\n✅ 云端构建完成: index.html + data.js 已生成，待 commit 推送")
+
+    # ⑤⑥ 重点医院概览（数据源 sources/TOPCORE医院DDD*.xlsx）
+    if env["EAST2_DDD"] and os.path.isfile(os.path.join(ROOT, "extract_hosp_overview.py")):
+        run("⑤ extract_hosp_overview（重点医院概览数据）", PY, os.path.join(ROOT, "extract_hosp_overview.py"))
+        run("⑥ build_hosp_overview（重点医院概览HTML）", PY, os.path.join(ROOT, "build_hosp_overview.py"))
+    else:
+        print("\n[跳过] 未找到 TOPCORE医院DDD，跳过重点医院概览构建")
+
+    print("\n✅ 云端构建完成: index.html + data.js + hospital_overview.html 已生成，待 commit 推送")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>东二区 · 重点医院概览复盘看板</title>
+<style>
+  :root{
+    --bg:#eef2f7; --card:#ffffff; --ink:#1f2937; --mut:#6b7280; --line:#e5e7eb;
+    --blue:#2563eb; --green:#16a34a; --yellow:#d97706; --red:#dc2626; --orange:#ea580c;
+    --purple:#7c3aed; --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--ink);font-size:13px}
+  .topbar{background:linear-gradient(90deg,#1e3a8a,#2563eb);color:#fff;padding:12px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap}
+  .topbar h1{font-size:18px;margin:0;font-weight:700;letter-spacing:.5px}
+  .topbar .src{font-size:11px;opacity:.85}
+  .wrap{max-width:1320px;margin:0 auto;padding:14px}
+  /* filter bar */
+  .filterbar{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;background:var(--card);padding:12px 14px;border-radius:10px;box-shadow:var(--shadow);margin-bottom:14px}
+  .fitem{display:flex;flex-direction:column;gap:3px}
+  .fitem label{font-size:11px;color:var(--mut);font-weight:600}
+  .fitem select,.fitem input{padding:6px 8px;border:1px solid var(--line);border-radius:7px;font-size:13px;min-width:120px;background:#fff;color:var(--ink)}
+  .btn{padding:7px 14px;border:none;border-radius:7px;background:var(--blue);color:#fff;cursor:pointer;font-size:13px;font-weight:600}
+  .btn.ghost{background:#eef2ff;color:var(--blue)}
+  .btn:hover{filter:brightness(1.05)}
+  /* cards */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+  .kpi{background:var(--card);border-radius:10px;padding:12px 14px;box-shadow:var(--shadow);border-left:4px solid var(--blue)}
+  .kpi .t{font-size:11px;color:var(--mut);margin-bottom:4px}
+  .kpi .v{font-size:22px;font-weight:800}
+  .kpi .s{font-size:11px;color:var(--mut);margin-top:2px}
+  .kpi.green{border-color:var(--green)} .kpi.orange{border-color:var(--orange)} .kpi.purple{border-color:var(--purple)} .kpi.red{border-color:var(--red)}
+  /* section */
+  .row{background:var(--card);border-radius:10px;box-shadow:var(--shadow);padding:14px 16px;margin-bottom:14px}
+  .row h2{font-size:15px;margin:0 0 10px;display:flex;align-items:center;gap:8px}
+  .row h2 .tag{font-size:11px;background:#dbeafe;color:var(--blue);padding:2px 8px;border-radius:20px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+  @media(max-width:900px){.grid2,.grid3{grid-template-columns:1fr}}
+  /* info grid */
+  .infog{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+  .infog div{background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+  .infog .l{font-size:11px;color:var(--mut)} .infog .v{font-size:14px;font-weight:700;margin-top:2px}
+  /* table */
+  table{border-collapse:collapse;width:100%;font-size:12px}
+  th,td{border:1px solid var(--line);padding:6px 8px;text-align:center}
+  th{background:#f1f5f9;font-weight:700;position:sticky;top:0}
+  td.l,th.l{text-align:left}
+  tr.hosprow{cursor:pointer} tr.hosprow:hover{background:#eff6ff}
+  .badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}
+  .b-green{background:#dcfce7;color:#166534}.b-yellow{background:#fef9c3;color:#854d0e}
+  .b-red{background:#fee2e2;color:#991b1b}.b-blue{background:#dbeafe;color:#1d4ed8}
+  .b-gray{background:#f3f4f6;color:#4b5563}.b-orange{background:#ffedd5;color:#9a3412}
+  .pill{display:inline-block;padding:1px 6px;border-radius:6px;font-size:11px}
+  .c-green{background:#ecfdf5;color:#065f46}.c-yellow{background:#fffbeb;color:#92400e}
+  .c-red{background:#fef2f2;color:#991b1b}.c-blue{background:#eff6ff;color:#1e40af}
+  /* suggestion */
+  .suggest{background:linear-gradient(135deg,#fffbeb,#fef3c7);border:1px solid #fcd34d;border-radius:10px;padding:12px 16px}
+  .suggest h2{color:#92400e}
+  .suggest ol{margin:6px 0 0;padding-left:20px} .suggest li{margin:6px 0;line-height:1.5}
+  .chartbox{position:relative;height:300px}
+  .chartbox.sm{height:120px}
+  .note{font-size:11px;color:var(--mut);margin-top:8px;line-height:1.5}
+  .muted{color:var(--mut)}
+  .hl{color:var(--red);font-weight:700}
+  .scrollx{overflow-x:auto}
+  .big{font-size:24px;font-weight:800}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>🏥 东二区 · 重点医院概览复盘看板</h1>
+  <div class="src" id="srcLine"></div>
+</div>
+<div class="wrap">
+
+  <!-- 筛选区 -->
+  <div class="filterbar">
+    <div class="fitem"><label>医院级别</label><select id="fLevel"><option value="">全部</option></select></div>
+    <div class="fitem"><label>DM</label><select id="fDm"><option value="">全部</option></select></div>
+    <div class="fitem"><label>MICS</label><select id="fMics"><option value="">全部</option></select></div>
+    <div class="fitem"><label>准入情况</label><select id="fAccess"><option value="">全部</option></select></div>
+    <div class="fitem"><label>医院名称</label><select id="fHosp"><option value="">— 汇总视图 —</option></select></div>
+    <div class="fitem"><label>&nbsp;</label><button class="btn ghost" id="btnReset">重置筛选</button></div>
+  </div>
+
+  <!-- 汇总视图 -->
+  <div id="summaryView">
+    <div class="cards" id="sumCards"></div>
+    <div class="row">
+      <h2>📋 筛选范围内医院清单 <span class="tag" id="sumCount"></span></h2>
+      <div class="scrollx"><table id="sumTable"></table></div>
+      <div class="note">点击任意一行可下钻进入该医院单家复盘视图。</div>
+    </div>
+  </div>
+
+  <!-- 单家医院视图 -->
+  <div id="hospView" style="display:none">
+
+    <!-- 第一行 经营概览 -->
+    <div class="row">
+      <h2>① 医院经营概览 <span class="tag" id="hHospName"></span></h2>
+      <div class="infog" id="hInfo" style="margin-bottom:12px"></div>
+      <div class="cards" id="hKpi"></div>
+      <div class="chartbox sm"><canvas id="sparkTTH"></canvas></div>
+    </div>
+
+    <!-- 第二行 TTH变化 -->
+    <div class="row">
+      <h2>② TTH 预估变化</h2>
+      <div class="grid2">
+        <div><div class="chartbox"><canvas id="chartTTH"></canvas></div></div>
+        <div>
+          <div class="infog" id="hDiag"></div>
+          <div id="hTrendBadge" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 第三行 客户基础与级别 -->
+    <div class="row">
+      <h2>③ 客户基础与客户级别</h2>
+      <div class="grid3">
+        <div><div class="cards" id="hBase" style="grid-template-columns:1fr 1fr"></div></div>
+        <div><div class="chartbox"><canvas id="chartABCD"></canvas></div></div>
+        <div><div class="infog" id="hTypeOut"></div></div>
+      </div>
+      <div class="note">A客户数量少但贡献高→重点维护；B客户多但人均低→转A空间大；C/D多且无销量→重估客户池。</div>
+    </div>
+
+    <!-- 第四行 观念结构 -->
+    <div class="row">
+      <h2>④ 客户观念结构（当前 vs 目标）</h2>
+      <div class="grid2">
+        <div><div class="chartbox"><canvas id="chartConcept"></canvas></div></div>
+        <div class="infog" id="hConceptStat"></div>
+      </div>
+    </div>
+
+    <!-- 第五行 科室/亚专业/专诊 -->
+    <div class="row">
+      <h2>⑤ 科室、亚专业与专诊机会</h2>
+      <div class="grid2">
+        <div><div class="chartbox"><canvas id="chartDept"></canvas></div></div>
+        <div><div class="chartbox"><canvas id="chartScatter"></canvas></div></div>
+      </div>
+      <div class="note" id="hSpecNote"></div>
+    </div>
+
+    <!-- 第六行 全部客户明细 -->
+    <div class="row">
+      <h2>⑥ 该院全部客户明细 <span class="tag" id="hCustCount"></span></h2>
+      <div class="scrollx"><table id="custTable"></table></div>
+      <div class="note">颜色：<span class="c-blue">蓝=重点打造</span> <span class="c-red">红=销量明显下滑</span> <span class="c-yellow">黄=高潜力未转化</span> <span class="c-green">绿=增长/稳定</span>。空白单元格为DM待填写字段。</div>
+    </div>
+
+    <!-- 第七行 重点打造客户 -->
+    <div class="row">
+      <h2>⑦ 重点打造客户（目标=治痛管理及以上） <span class="tag" id="hKeyCount"></span></h2>
+      <div class="cards" id="hKeyKpi" style="margin-bottom:10px"></div>
+      <div class="scrollx"><table id="keyTable"></table></div>
+    </div>
+
+    <!-- 智能复盘建议 -->
+    <div class="suggest" id="suggestBox"></div>
+
+    <div class="note" style="text-align:center;margin:10px 0">
+      复盘会议固定五问：① 结果(增长/稳定/下滑) ② 来源(哪些客户/科室/亚专业) ③ 基础(标签/活跃客户是否支撑目标) ④ 转化(谁需级别/观念升级) ⑤ 行动(下月做什么/谁负责/需什么支持)
+    </div>
+  </div>
+
+</div>
+
+<script>/*__CHARTJS__*/</script>
+<script>/*__DATA__*/</script>
+<script>
+const DATA = window.__HO__;
+const STAGES = DATA.meta.stages, MONTHS = DATA.meta.months;
+const H = DATA.hospitals;
+const charts = {};
+function destroy(id){ if(charts[id]){charts[id].destroy(); delete charts[id];} }
+function fmt(n){ if(n===null||n===undefined||isNaN(n)) return "—"; n=Math.round(n*10)/10; return n.toLocaleString('zh-CN'); }
+function pct(n){ return (n===null||n===undefined||isNaN(n))?"—":(Math.round(n*10)/10)+"%"; }
+function mlab(m){ return m+"月"; }
+const MONTH_LABELS = MONTHS.map(mlab);
+
+// ---------- 筛选状态 ----------
+const state = {level:"",dm:"",mics:"",access:"",hosp:""};
+function fillSelect(id,arr){ const s=document.getElementById(id); arr.forEach(v=>{const o=document.createElement("option");o.value=v;o.textContent=v;s.appendChild(o);}); }
+fillSelect("fLevel",DATA.filters.level);
+fillSelect("fDm",DATA.filters.dm);
+fillSelect("fMics",DATA.filters.mics);
+fillSelect("fAccess",DATA.filters.access);
+document.getElementById("srcLine").textContent = "数据源："+(DATA.meta.source||"")+" ｜ 共 "+H.length+" 家重点医院 ｜ 观念7阶口径：不管不治→治痛管理大师";
+
+function matches(h){
+  return (!state.level||h.level===state.level)
+    && (!state.dm||h.dm===state.dm)
+    && (!state.mics||h.mics===state.mics||h.mics.indexOf(state.mics)>=0)
+    && (!state.access||h.access===state.access);
+}
+function filtered(){ return H.filter(matches); }
+
+function refreshHospSelect(){
+  const sel=document.getElementById("fHosp");
+  const cur=state.hosp; sel.innerHTML='<option value="">— 汇总视图 —</option>';
+  filtered().forEach(h=>{const o=document.createElement("option");o.value=h.key;o.textContent=h.name+(h.level?"（"+h.level+"）":"");sel.appendChild(o);});
+  if(filtered().some(h=>h.key===cur)) sel.value=cur; else state.hosp="";
+}
+
+// ---------- 汇总视图 ----------
+function renderSummary(){
+  const list=filtered();
+  const sum={
+    hosp:list.length,
+    cust:list.reduce((a,h)=>a+h.customers.length,0),
+    tag:list.reduce((a,h)=>a+h.tag_n,0),
+    active:list.reduce((a,h)=>a+h.active_latest,0),
+    tth:list.reduce((a,h)=>a+h.monthly_tth[h.latest_month],0),
+    net:list.reduce((a,h)=>a+h.net37,0),
+    key:list.reduce((a,h)=>a+h.key_n,0),
+  };
+  const rate= sum.tag? Math.round(sum.active/sum.tag*1000)/10:0;
+  document.getElementById("sumCards").innerHTML=[
+    ["医院数",sum.hosp,"聚焦 TOP/CORE",""],
+    ["客户总数",sum.cust,"标签+非标签",""],
+    ["标签客户数",sum.tag,"瞄准镜244",""],
+    ["活跃客户数(最新月)",sum.active,"单月去重",""],
+    ["平均活跃率",pct(rate),"活跃÷标签",""],
+    ["最新月TTH合计",fmt(sum.tth),"元",""],
+    ["3-7月净增量",fmt(sum.net),"元",""],
+    ["重点打造客户",sum.key,"治痛管理↑",""],
+  ].map(c=>`<div class="kpi"><div class="t">${c[0]}</div><div class="v">${c[1]}</div><div class="s">${c[2]}</div></div>`).join("");
+
+  const rows=list.map(h=>{
+    const last=h.monthly_tth[h.latest_month], prev=h.monthly_tth[7];
+    const mom = prev>0? Math.round((last-prev)/prev*1000)/10 : null;
+    const g = h.growth37;
+    return `<tr class="hosprow" data-key="${h.key}">
+      <td class="l">${h.name}</td><td>${badgeLevel(h.level)}</td><td>${h.dm}</td><td>${h.mics}</td>
+      <td>${h.access}</td><td>${fmt(last)}</td><td>${mom===null?"—":(mom>=0?"+":"")+mom+"%"}</td>
+      <td>${g===null?"—":(g>=0?"+":"")+g+"%"}</td><td>${h.tag_n}</td><td>${h.active_latest}</td>
+      <td>${h.key_n}</td><td>${trendBadge(h.trend_status)}</td></tr>`;
+  }).join("");
+  document.getElementById("sumTable").innerHTML=
+    `<thead><tr><th class="l">医院</th><th>级别</th><th>DM</th><th>MICS</th><th>准入</th><th>最新月TTH</th><th>7月环比</th><th>3-7月增长</th><th>标签客户</th><th>活跃客户</th><th>重点客户</th><th>趋势</th></tr></thead><tbody>${rows}</tbody>`;
+  document.getElementById("sumCount").textContent="共 "+list.length+" 家";
+  document.querySelectorAll(".hosprow").forEach(tr=>tr.onclick=()=>{state.hosp=tr.dataset.key;document.getElementById("fHosp").value=state.hosp;render();});
+  document.getElementById("summaryView").style.display="block";
+  document.getElementById("hospView").style.display="none";
+}
+
+function badgeLevel(l){ return l==="TOP"?'<span class="badge b-blue">TOP</span>':l==="CORE"?'<span class="badge b-green">CORE</span>':l==="Growth"?'<span class="badge b-purple">Growth</span>':'—'; }
+function trendBadge(t){
+  const m={"持续增长":["b-green","↑"],"恢复增长":["b-green","↗"],"高位稳定":["b-blue","—"],"波动较大":["b-orange","≈"],"连续下滑":["b-red","↓"],"低位停滞":["b-gray","·"]};
+  const [c,a]=m[t]||["b-gray","·"]; return `<span class="badge ${c}">${a} ${t}</span>`;
+}
+
+// ---------- 单家医院视图 ----------
+function renderHospital(){
+  const h=H.find(x=>x.key===state.hosp); if(!h){renderSummary();return;}
+  document.getElementById("summaryView").style.display="none";
+  document.getElementById("hospView").style.display="block";
+  document.getElementById("hHospName").textContent=h.name+" · "+h.level;
+
+  // 信息卡
+  const info=[["医院级别",h.level],["DM",h.dm],["MICS",h.mics],["准入状态",h.access],
+    ["院内渠道开放",h.channel||"—"],["进货金额限制",(h.money_limit||"不适用")+(h.money_limit_amt?"（"+h.money_limit_amt+"）":"")],
+    ["梯队标签",h.tier||"—"],["9月TTH目标",h.tth9_target?fmt(h.tth9_target):"—"]];
+  document.getElementById("hInfo").innerHTML=info.map(i=>`<div><div class="l">${i[0]}</div><div class="v">${i[1]}</div></div>`).join("");
+
+  // 核心KPI
+  const last=h.monthly_tth[h.latest_month];
+  document.getElementById("hKpi").innerHTML=[
+    ["每月TTH预估("+mlab(h.latest_month)+")",fmt(last),"见下方趋势线",""],
+    ["3-7月净增量",fmt(h.net37),"元",h.net37>=0?"green":"red"],
+    ["3-7月增长率",pct(h.growth37),"",h.growth37>=0?"green":"red"],
+    ["标签客户数",h.tag_n,"结合瞄准镜",""],
+    ["活跃客户数("+mlab(h.latest_month)+")",h.active_latest,"单月去重",""],
+    ["活跃率",pct(h.active_rate),"活跃÷标签","green"],
+    ["大客户数(A类)",h.big_n,"A类客户","purple"],
+    ["大客户销量贡献率",pct(h.big_contrib),"A类TTH占比","purple"],
+  ].map(c=>`<div class="kpi ${c[3]}"><div class="t">${c[0]}</div><div class="v">${c[1]}</div><div class="s">${c[2]}</div></div>`).join("");
+
+  drawSpark(h); drawTTH(h); drawABCD(h); drawConcept(h); drawDept(h); drawScatter(h);
+  renderBase(h); renderDiag(h); renderTypeOut(h); renderConceptStat(h); renderSpecNote(h);
+  renderCustTable(h); renderKeyTable(h); renderSuggest(h);
+}
+function renderBase(h){
+  const nonActive = h.tag_n - h.active_latest;
+  document.getElementById("hBase").innerHTML=[
+    ["标签客户数",h.tag_n,"瞄准镜244"],
+    ["活跃客户数",h.active_latest,mlab(h.latest_month)+"单月去重"],
+    ["非活跃客户数",nonActive,"标签-活跃"],
+    ["活跃率",pct(h.active_rate),"活跃÷标签"],
+  ].map(c=>`<div class="kpi"><div class="t">${c[0]}</div><div class="v">${c[1]}</div><div class="s">${c[2]}</div></div>`).join("");
+}
+
+function drawSpark(h){
+  destroy("sparkTTH");
+  const vals=MONTHS.map(m=>h.monthly_tth[m]);
+  charts.sparkTTH=new Chart(document.getElementById("sparkTTH"),{type:"line",
+    data:{labels:MONTH_LABELS,datasets:[{data:vals,borderColor:"#2563eb",backgroundColor:"rgba(37,99,235,.1)",fill:true,pointRadius:2,borderWidth:2}]},
+    options:{plugins:{legend:{display:false},tooltip:{enabled:true}},scales:{x:{display:false},y:{display:false}},elements:{line:{tension:.35}}}});
+}
+function drawTTH(h){
+  destroy("chartTTH");
+  const vals=MONTHS.map(m=>h.monthly_tth[m]);
+  charts.chartTTH=new Chart(document.getElementById("chartTTH"),{type:"line",
+    data:{labels:MONTH_LABELS,datasets:[{label:"TTH预估(元)",data:vals,borderColor:"#2563eb",backgroundColor:"rgba(37,99,235,.12)",fill:true,pointRadius:4,pointBackgroundColor:"#1e3a8a",borderWidth:2.5}]},
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>mlab(MONTHS[c.dataIndex])+"："+fmt(c.parsed.y)+"元"}}},
+      scales:{y:{beginAtZero:true,title:{display:true,text:"TTH(元)"}},x:{title:{display:true,text:"月份"}}},elements:{line:{tension:.3}}}});
+}
+function drawABCD(h){
+  destroy("chartABCD");
+  const d=h.abcd; const v=["A","B","C","D"].map(k=>d[k]);
+  charts.chartABCD=new Chart(document.getElementById("chartABCD"),{type:"doughnut",
+    data:{labels:["A类","B类","C类","D类"],datasets:[{data:v,backgroundColor:["#dc2626","#2563eb","#16a34a","#9ca3af"]}]},
+    options:{plugins:{legend:{position:"right"},title:{display:true,text:"客户分型分布"},tooltip:{callbacks:{label:c=>c.label+"："+c.parsed+"人"}}},cutout:"55%"}});
+}
+function drawConcept(h){
+  destroy("chartConcept");
+  const cur=STAGES.map(s=>h.cur_dist[s]), tgt=STAGES.map(s=>h.tgt_dist[s]);
+  charts.chartConcept=new Chart(document.getElementById("chartConcept"),{type:"bar",
+    data:{labels:STAGES,datasets:[
+      {label:"当前观念",data:cur,backgroundColor:"#93c5fd"},
+      {label:"目标观念",data:tgt,backgroundColor:"#1e3a8a"}]},
+    options:{indexAxis:"y",plugins:{legend:{position:"top"},title:{display:true,text:"观念阶段分布（客户数）"}},
+      scales:{x:{beginAtZero:true,title:{display:true,text:"客户数"}}}}});
+}
+function drawDept(h){
+  destroy("chartDept");
+  const depts=Object.entries(h.dept).sort((a,b)=>b[1].n-a[1].n).slice(0,8);
+  charts.chartDept=new Chart(document.getElementById("chartDept"),{type:"bar",
+    data:{labels:depts.map(d=>d[0]||"未填"),datasets:[
+      {label:"客户数",data:depts.map(d=>d[1].n),backgroundColor:"#2563eb"},
+      {label:"7月TTH",data:depts.map(d=>Math.round(d[1].tth)),backgroundColor:"#f59e0b",yAxisID:"y2"}]},
+    options:{plugins:{legend:{position:"top"},title:{display:true,text:"科室客户结构（客户数 / 7月TTH）"}},
+      scales:{y:{beginAtZero:true,position:"left"},y2:{beginAtZero:true,position:"right",grid:{drawOnChartArea:false}}}}});
+}
+function drawScatter(h){
+  destroy("chartScatter");
+  const colorMap={A:"#dc2626",B:"#2563eb",C:"#16a34a",D:"#9ca3af"};
+  const groups={};
+  h.customers.forEach(c=>{const k=c.type||"?"; (groups[k]=groups[k]||[]).push({x:c.visit_per,y:c.tth[7],n:c.name});});
+  const ds=Object.keys(groups).map(k=>({label:k+"类",data:groups[k],backgroundColor:colorMap[k]||"#999",pointRadius:5}));
+  charts.chartScatter=new Chart(document.getElementById("chartScatter"),{type:"scatter",data:{datasets:ds},
+    options:{plugins:{legend:{position:"top"},title:{display:true,text:"出诊次数/月 × 7月TTH（识别核心/转化/保护客户）"},
+      tooltip:{callbacks:{label:c=>c.raw.n+"："+c.raw.x+"次/"+fmt(c.raw.y)+"元"}}},
+      scales:{x:{title:{display:true,text:"出诊次数/月"}},y:{title:{display:true,text:"7月TTH(元)"},beginAtZero:true}}}});
+}
+
+function renderDiag(h){
+  const vals=MONTHS.map(m=>h.monthly_tth[m]).filter(v=>v>0);
+  const last=h.monthly_tth[h.latest_month], prev=h.monthly_tth[7];
+  const mom = prev>0? Math.round((last-prev)/prev*1000)/10 : null;
+  const mx=Math.max(...vals), mn=Math.min(...vals);
+  const amp = mn>0? Math.round((mx-mn)/mn*100):0;
+  let streak=0,dir=0; for(let i=1;i<vals.length;i++){if(vals[i]>vals[i-1]){if(dir>=0)streak++;dir=1;}else if(vals[i]<vals[i-1]){if(dir<=0)streak--;dir=-1;}else streak=0;}
+  const upMon=streak>0, downMon=streak<0;
+  document.getElementById("hDiag").innerHTML=[
+    ["7月环比变化",mom===null?"—":(mom>=0?"+":"")+mom+"%"],
+    ["3-7月净增量",fmt(h.net37)+"元"],
+    ["3-7月增长率",pct(h.growth37)],
+    ["最高月份",mlab(MONTHS[vals.indexOf(mx)])+"（"+fmt(mx)+"）"],
+    ["最低月份",mlab(MONTHS[vals.indexOf(mn)])+"（"+fmt(mn)+"）"],
+    ["连续增长/下滑月数",(upMon?"增长":downMon?"下滑":"波动")+" "+Math.abs(streak)+"月"],
+    ["波动幅度",amp+"%"],
+  ].map(i=>`<div><div class="l">${i[0]}</div><div class="v">${i[1]}</div></div>`).join("");
+  document.getElementById("hTrendBadge").innerHTML="<div style='font-size:15px;font-weight:800'>"+trendBadge(h.trend_status)+"</div><div class='muted' style='margin-top:4px'>DM一键读取经营状态，无需自行判折线</div>";
+}
+function renderTypeOut(h){
+  const d=h.abcd, c=h.abcd_contrib;
+  const rows=["A","B","C","D"].map(k=>`<div><div class="l">${k}类客户</div><div class="v">${d[k]}人 · 贡献${pct(c[k])}</div></div>`).join("");
+  const avgT=id=>{const cs=h.customers.filter(c=>c.type===id&&c.tth[7]>0);return cs.length?Math.round(cs.reduce((a,c)=>a+c.tth[7],0)/cs.length):0;};
+  const gr=id=>{const cs=h.customers.filter(c=>c.type===id);const ok=cs.filter(c=>c.growth37!==null&&c.growth37>=0).length;return cs.length?Math.round(ok/cs.length*100):0;};
+  document.getElementById("hTypeOut").innerHTML=rows+
+    `<div><div class="l">各级人均7月TTH</div><div class="v">A ${avgT('A')} / B ${avgT('B')} / C ${avgT('C')} / D ${avgT('D')}</div></div>`+
+    `<div><div class="l">各级3-7月增长占比</div><div class="v">A ${gr('A')}% / B ${gr('B')}% / C ${gr('C')}% / D ${gr('D')}%</div></div>`+
+    `<div><div class="l">活跃客户销量贡献率</div><div class="v">${pct(Math.round((1-(h.abcd_contrib.D+h.abcd_contrib.C)/100)*100))}</div></div>`;
+}
+function renderConceptStat(h){
+  document.getElementById("hConceptStat").innerHTML=[
+    ["当前各观念客户数",STAGES.map(s=>s+" "+h.cur_dist[s]).join("，")],
+    ["目标各观念客户数",STAGES.map(s=>s+" "+h.tgt_dist[s]).join("，")],
+    ["计划升级客户数",h.upgrade_planned+"人"],
+    ["已设定升级目标客户数",h.upgrade_set+"人"],
+    ["无明确目标客户数",h.upgrade_none+"人"],
+    ["观念升级完成率",pct(h.upgrade_done_rate)],
+  ].map(i=>`<div style="margin-bottom:8px"><div class="l" style="font-weight:600">${i[0]}</div><div class="v" style="font-size:12px">${i[1]}</div></div>`).join("");
+}
+function renderSpecNote(h){
+  document.getElementById("hSpecNote").innerHTML=
+    `本院客户专诊：<b>${h.has_special?"已设专诊":"未设专诊"}</b> ｜ 专诊${fmt(h.special_sum)}次/月 ｜ 非专诊${fmt(h.nonspecial_sum)}次/月 ｜ 总出诊${fmt(h.visit_sum)}次/月 ｜ 含头痛/眩晕标签客户 ${h.headache_n} 人 ｜ 眩晕亚专业 ${h.vertigo_n} 人。`;
+}
+
+// 客户颜色判定
+function custColor(c){
+  if(c.is_key) return "c-blue";
+  if(c.tth[7]>0 && c.tth[6]>0 && c.tth[7] < c.tth[6]*0.8) return "c-red";
+  if((c.cur_idx===null||c.cur_idx<=1) && c.visit_per>=8) return "c-yellow";
+  return "c-green";
+}
+function custTag(c){
+  if(c.is_key) return "重点打造";
+  if(c.tth[7]>0 && c.tth[6]>0 && c.tth[7] < c.tth[6]*0.8) return "销量下滑";
+  if((c.cur_idx===null||c.cur_idx<=1) && c.visit_per>=8) return "高潜力";
+  return "增长/稳定";
+}
+function renderCustTable(h){
+  const cs=[...h.customers].sort((a,b)=>b.tth[7]-a.tth[7]);
+  document.getElementById("hCustCount").textContent="共 "+cs.length+" 人";
+  const head=`<tr><th class="l">客户</th><th class="l">科室</th><th class="l">亚专业</th><th>分型</th><th>List</th><th>244</th><th>专诊</th><th>出诊/月</th><th>3-7月TTH</th><th>3-7月增长</th><th class="l">当前观念</th><th class="l">目标观念</th><th class="l">机会点</th><th class="l">行动计划</th><th class="l">所需支持</th><th>状态</th></tr>`;
+  const body=cs.map(c=>{
+    const g=c.growth37; const col=custColor(c);
+    return `<tr>
+      <td class="l">${c.name}</td><td class="l">${c.dept||"—"}</td><td class="l">${c.sub||"—"}</td>
+      <td>${c.type||"—"}</td><td>${c.is_list?"是":"否"}</td><td>${c.is244?"是":"否"}</td>
+      <td>${c.special_label||"—"}</td><td>${fmt(c.visit_per)}</td>
+      <td>${fmt(c.tth37)}</td><td>${g===null?"—":(g>=0?"+":"")+Math.round(g)+"%"}</td>
+      <td class="l">${c.cur_concept||"—"}</td><td class="l">${c.tgt_concept||"—"}</td>
+      <td class="l">${c.opp||'<span class="muted">（待填写）</span>'}</td>
+      <td class="l">${c.action||'<span class="muted">（待填写）</span>'}</td>
+      <td class="l">${c.support||'<span class="muted">（待填写）</span>'}</td>
+      <td><span class="pill ${col}">${custTag(c)}</span></td></tr>`;
+  }).join("");
+  document.getElementById("custTable").innerHTML="<thead>"+head+"</thead><tbody>"+body+"</tbody>";
+}
+
+function keySort(c){
+  // 优先级：1下滑 2目标缺失/差距大 3升级但行动空 4高增长 5正常
+  let s=5;
+  if(c.tth[7]>0&&c.tth[7]<c.tth[6]*0.8) s=1;
+  else if(c.m9_target===0 || (c.m9_target>0 && c.tth[7]>0 && (c.m9_target-c.tth[7])/c.tth[7]>0.8)) s=2;
+  else if(c.tgt_idx>c.cur_idx && !c.action) s=3;
+  else if(c.growth37!==null && c.growth37>=50) s=4;
+  return s;
+}
+function renderKeyTable(h){
+  const ks=[...h.key_customers].sort((a,b)=>keySort(a)-keySort(b));
+  document.getElementById("hKeyCount").textContent="共 "+ks.length+" 人 · 7月TTH "+fmt(h.key_tth7)+" · 贡献率 "+pct(h.key_contrib);
+  document.getElementById("hKeyKpi").innerHTML=[
+    ["重点客户数",h.key_n,"",""],
+    ["7月TTH",fmt(h.key_tth7),"元",""],
+    ["销量贡献率",pct(h.key_contrib),"占比",h.key_contrib>60?"red":"green"],
+    ["9月目标合计",fmt(h.key_customers.reduce((a,c)=>a+c.m9_target,0)),"元",""],
+  ].map(c=>`<div class="kpi ${c[3]}"><div class="t">${c[0]}</div><div class="v">${c[1]}</div><div class="s">${c[2]}</div></div>`).join("");
+  const head=`<tr><th class="l">客户</th><th class="l">科室</th><th>当前观念</th><th>目标观念</th><th>7月TTH</th><th>3-7月趋势</th><th>9月目标</th><th>目标差距</th><th class="l">机会点</th><th class="l">行动计划</th><th class="l">所需支持</th><th>负责人</th><th>状态</th></tr>`;
+  const body=ks.map(c=>{
+    const gap=c.m9_target-c.tth[7]; const col=custColor(c);
+    const trend=MONTHS.map(m=>fmt(c.tth[m])).join("→");
+    return `<tr>
+      <td class="l">${c.name}</td><td class="l">${c.dept||"—"}</td>
+      <td>${c.cur_concept||"—"}</td><td>${c.tgt_concept||"—"}</td>
+      <td>${fmt(c.tth[7])}</td><td style="font-size:11px">${trend}</td>
+      <td>${c.m9_target?fmt(c.m9_target):'<span class="muted">待填</span>'}</td>
+      <td>${c.m9_target?((gap>=0?"+":"")+fmt(gap)):'<span class="muted">—</span>'}</td>
+      <td class="l">${c.opp||'<span class="muted">（待填写）</span>'}</td>
+      <td class="l">${c.action||'<span class="muted">（待填写）</span>'}</td>
+      <td class="l">${c.support||'<span class="muted">（待填写）</span>'}</td>
+      <td>${h.dm}/${h.mics}</td>
+      <td><span class="pill ${col}">${custTag(c)}</span></td></tr>`;
+  }).join("");
+  document.getElementById("keyTable").innerHTML="<thead>"+head+"</thead><tbody>"+body+"</tbody>";
+}
+
+// ---------- 智能复盘建议 ----------
+function renderSuggest(h){
+  const S=[];
+  // 销量
+  const vals=MONTHS.map(m=>h.monthly_tth[m]).filter(v=>v>0);
+  const down2 = vals.length>=3 && vals[vals.length-1]<vals[vals.length-2] && vals[vals.length-2]<vals[vals.length-3];
+  if(down2) S.push(["销量","🔴 连续两个月销量下滑，优先定位下滑客户与渠道变化。"]);
+  const keyUp = h.key_customers.some(c=>c.tth[7]<c.tth[6]);
+  if(h.growth37>0 && keyUp) S.push(["销量","🟠 医院上涨但重点客户下滑，增长来源较分散，需检查大客户维护。"]);
+  if(h.key_contrib>60) S.push(["销量","🟠 重点客户贡献过高（"+pct(h.key_contrib)+"），销量集中风险，需培养第二梯队。"]);
+  const activeUp = h.active_latest> (h.monthly_active[3]||0);
+  if(h.growth37>0 && !activeUp && h.active_latest<=h.tag_n*0.6) S.push(["销量","🟡 医院增长但活跃客户未同步增长，可能由少数客户驱动，持续性需关注。"]);
+  // 客户结构
+  const abcd=h.abcd;
+  if(abcd.A<=2 && abcd.B>=6) S.push(["结构","🟠 A客户少、B客户多，优先制定B转A名单。"]);
+  const cd=(abcd.C+abcd.D), tot=abcd.A+abcd.B+abcd.C+abcd.D;
+  if(tot && cd/tot>0.5) S.push(["结构","🟡 C/D客户占比高（"+pct(cd/tot)+"），重新评估目标客户池。"]);
+  if(h.tag_n>0 && h.active_rate<50) S.push(["结构","🟡 标签客户多但活跃率低（"+pct(h.active_rate)+"），优先激活，不急于扩充名单。"]);
+  if(h.active_latest>0 && h.active_latest<=5 && (h.monthly_tth[7]/h.active_latest)>300) S.push(["结构","🟢 活跃客户少但人均产出高，补充客户覆盖面。"]);
+  // 观念
+  if(h.cur_dist["不管不治"]> h.customers.length*0.4) S.push(["观念","🟡 不管不治客户占比较高，先完成基础疾病认知与治疗观念建立。"]);
+  if(h.cur_dist["阶梯治疗"]>=5) S.push(["观念","🟠 阶梯治疗客户多，重点推动止痛优选。"]);
+  const reachMG=h.customers.filter(c=>c.cur_idx!==null&&c.cur_idx>=4);
+  if(reachMG.length && reachMG.every(c=>c.tth[7]<200)) S.push(["观念","🟡 已达治痛管理但销量低，检查处方场景、患者识别及院内渠道。"]);
+  const jump=h.customers.filter(c=>c.tgt_idx!==null&&c.cur_idx!==null&&c.tgt_idx-c.cur_idx>=2);
+  if(jump.length>=3) S.push(["观念","🟡 目标观念普遍跨越多个等级，目标可能过于激进，应拆分阶段行动。"]);
+  // 准入
+  if((h.access==="未准入"||h.access.indexOf("临采")>=0) && h.monthly_tth[h.latest_month]>500) S.push(["准入","🟢 未准入/临采但已有较高销量，作为准入推进重点医院。"]);
+  if(h.access==="正式准入" && h.growth37<0) S.push(["准入","🟠 已准入但销量持续下滑，问题可能不在准入，应转向客户覆盖与处方转化。"]);
+  if(h.channel && h.channel!=="无限制" && h.channel!=="不适用" && h.channel!=="") S.push(["准入","🔵 院内渠道受限（"+h.channel+"），单独展示限制内容，避免将渠道问题误判为DM执行问题。"]);
+
+  const box=document.getElementById("suggestBox");
+  if(!S.length){ box.innerHTML="<h2>💡 智能复盘建议</h2><div>本院各项指标暂无显著风险点，维持当前执行节奏。</div>"; return; }
+  const top=S.slice(0,5);
+  box.innerHTML="<h2>💡 智能复盘建议（本院自动生成，"+top.length+"条）</h2><ol>"+top.map(s=>"<li><b>["+s[0]+"]</b> "+s[1]+"</li>").join("")+"</ol>";
+}
+
+// ---------- 主渲染 ----------
+function render(){
+  refreshHospSelect();
+  if(state.hosp && H.some(x=>x.key===state.hosp && matches(x))) renderHospital();
+  else renderSummary();
+}
+["fLevel","fDm","fMics","fAccess"].forEach(id=>document.getElementById(id).onchange=e=>{state[id.slice(1).toLowerCase()]=e.target.value; if(id!=="fHosp") state.hosp=""; render();});
+document.getElementById("fHosp").onchange=e=>{state.hosp=e.target.value; render();};
+document.getElementById("btnReset").onclick=()=>{state.level=state.dm=state.mics=state.access=state.hosp="";["fLevel","fDm","fMics","fAccess","fHosp"].forEach(id=>document.getElementById(id).value="");render();};
+render();
+</script>
+</body>
+</html>
