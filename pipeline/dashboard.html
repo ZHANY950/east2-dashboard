@@ -248,7 +248,7 @@ function fmtPct(n,d=1){ if(n==null||isNaN(n)) return "—"; return (n>=0?"+":"")
 function arrow(n){ return n==null||isNaN(n)?"—":(n>0?"▲":"▼"); }
 function mkChart(id,cfg){ const el=document.getElementById(id); if(!el) return null; const cv=el.querySelector("canvas"); if(charts[id]){charts[id].destroy();delete charts[id];} if(typeof Chart==="undefined"){ el.innerHTML='<div class="empty">图表库未加载（需联网）</div>'; return null;} charts[id]=new Chart(cv.getContext("2d"),cfg); return charts[id]; }
 function pageOf(name){document.querySelectorAll(".nav-item").forEach(n=>n.classList.toggle("active",n.dataset.page===name));document.querySelectorAll(".page").forEach(p=>p.classList.toggle("active",p.id==="page-"+name));}
-function goPage(name){ pageOf(name); if(name==="hospital"){ if(!window._hfInit){initHospFilters();window._hfInit=true;} renderHospList(); } }
+function goPage(name){ pageOf(name); }
 function toggleSidebar(){const L=document.getElementById("layout");L.classList.toggle("collapsed");const b=document.querySelector(".sidebar .toggle");if(b)b.textContent=L.classList.contains("collapsed")?"▶":"◀";}
 
 /* ============================================================

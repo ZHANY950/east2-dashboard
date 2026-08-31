@@ -1015,28 +1015,10 @@ i2 = html.find(P2A)
 assert i2 > 0, "页面2标记未找到"
 j2 = html.find('</section>', i2)
 assert j2 > i2, "页面2 section 结束未找到"
-NEW_P2 = """<!-- ============ 页面2：重点医院概览（v3） ============ -->
+NEW_P2 = """<!-- ============ 页面2：重点医院概览（v4 · 内嵌独立复盘看板） ============ -->
     <section class="page" id="page-hospital">
-      <div class="page-head">
-        <div>
-          <h2>重点医院概览 <span style="font-size:12px;color:var(--ink3);font-weight:400">（v3 · 可排序列表 + 一院一屏联动）</span></h2>
-          <div class="sub" id="hosp-sub">重点医院（TOP / CORE / Growth）· 点击表头排序 · 点击医院行进入「一院一屏」</div>
-        </div>
-        <div class="toolbar">
-          <button class="btn" onclick="exportCsv('hospital')">⬇ 导出客户明细</button>
-        </div>
-      </div>
-      <div class="filter-bar" id="hosp-filter">
-        <label>医院级别</label><select id="hf-level" onchange="applyHospFilter()"><option value="">全部</option></select>
-        <label>DM</label><select id="hf-dm" onchange="applyHospFilter()"><option value="">全部</option></select>
-        <label>MICS</label><select id="hf-mics" onchange="applyHospFilter()"><option value="">全部</option></select>
-        <label>准入情况</label><select id="hf-access" onchange="applyHospFilter()"><option value="">全部</option></select>
-        <span class="grow"></span>
-        <label>医院名称</label><select id="hf-hosp" onchange="selectHospital()"><option value="">— 请选择医院 —</option></select>
-        <button class="btn" onclick="resetHosp()">↺ 重置</button>
-      </div>
-      <div id="hosp-summary"></div>
-      <div id="hosp-view"></div>
+      <iframe id="ho-frame" src="hospital_overview.html" title="重点医院概览复盘看板"
+        style="width:100%;height:calc(100vh - 84px);border:0;border-radius:10px;background:#fff;box-shadow:var(--shadow)"></iframe>
     </section>"""
 html = html[:i2] + NEW_P2 + html[j2 + len('</section>'):]
 
@@ -1402,7 +1384,10 @@ function buildAdvice(h,cu){
 }
 
 """
-html = html[:i3] + NEW_P2JS + html[j3:]
+# v4：重点医院概览改为内嵌独立复盘看板（hospital_overview.html，自包含 HTML），
+# 避免与主脚本共享全局作用域（const charts / function fmt 等重名会报错），
+# 同时保留主看板单文件入口：点击「重点医院概览」即加载该页。
+html = html[:i3] + "/* 重点医院概览已通过 iframe 内嵌 hospital_overview.html，本段不再注入医院 JS */" + html[j3:]
 
 # ---------- 7) 导出CSV hospital 分支补 8月TTH 列 ----------
 _OLD_HEAD = '"6月TTH","7月TTH","当前观念","目标观念","机会点"];'
