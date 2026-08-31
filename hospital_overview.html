@@ -66,6 +66,22 @@
   .hl{color:var(--red);font-weight:700}
   .scrollx{overflow-x:auto}
   .big{font-size:24px;font-weight:800}
+  /* 观念结构对比卡（替换原7指标诊断卡） */
+  .concept-card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .concept-card .ch-head{font-size:11px;color:var(--mut);font-weight:600;letter-spacing:.5px;margin-bottom:2px}
+  .concept-card .ch-title{font-size:16px;font-weight:800;margin-bottom:4px}
+  .concept-card .ch-arrow{color:var(--orange);margin:0 4px}
+  .concept-card .ch-legend{display:flex;gap:18px;align-items:center;margin:10px 0 6px;font-size:11px;color:var(--mut)}
+  .concept-card .ch-legend .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+  .concept-card .ch-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 22px;margin-top:6px}
+  .concept-card .ch-col h4{font-size:12px;color:var(--mut);margin:0 0 6px 0;font-weight:700;letter-spacing:.5px}
+  .concept-card .ch-row{display:grid;grid-template-columns:84px 1fr 30px;align-items:center;gap:8px;margin:5px 0}
+  .concept-card .ch-row .nm{font-size:12px;color:var(--ink);white-space:nowrap}
+  .concept-card .ch-row .bg{background:#f1f5f9;height:8px;border-radius:4px;overflow:hidden;position:relative}
+  .concept-card .ch-row .fg{height:100%;border-radius:4px;transition:width .3s}
+  .concept-card .ch-row.cur .fg{background:#2563eb}
+  .concept-card .ch-row.tgt .fg{background:#ea580c}
+  .concept-card .ch-row .vl{font-weight:800;font-size:12px;text-align:right;min-width:24px}
 </style>
 </head>
 <body>
@@ -111,9 +127,17 @@
       <h2>② TTH 预估变化</h2>
       <div class="grid2">
         <div><div class="chartbox"><canvas id="chartTTH"></canvas></div></div>
-        <div>
-          <div class="infog" id="hDiag"></div>
-          <div id="hTrendBadge" style="margin-top:10px"></div>
+        <div class="concept-card" id="hConceptCard">
+          <div class="ch-head">当前客户 → 目标客户</div>
+          <div class="ch-title">客户观念结构</div>
+          <div class="ch-legend">
+            <span><span class="dot" style="background:#2563eb"></span>当前</span>
+            <span><span class="dot" style="background:#ea580c"></span>目标</span>
+          </div>
+          <div class="ch-grid">
+            <div class="ch-col" id="hConceptCur"><h4>当前</h4></div>
+            <div class="ch-col" id="hConceptTgt"><h4>目标</h4></div>
+          </div>
         </div>
       </div>
     </div>
@@ -304,7 +328,7 @@ function renderHospital(){
   ].map(c=>`<div class="kpi ${c[3]}"><div class="t">${c[0]}</div><div class="v">${c[1]}</div><div class="s">${c[2]}</div></div>`).join("");
 
   drawSpark(h); drawTTH(h); drawABCD(h); drawConcept(h); drawDept(h); drawScatter(h);
-  renderBase(h); renderDiag(h); renderTypeOut(h); renderConceptStat(h); renderSpecNote(h);
+  renderBase(h); renderTypeOut(h); renderConceptCard(h); renderConceptStat(h); renderSpecNote(h);
   renderCustTable(h); renderKeyTable(h); renderSuggest(h);
 }
 function renderBase(h){
@@ -328,9 +352,16 @@ function drawTTH(h){
   destroy("chartTTH");
   const vals=MONTHS.map(m=>h.monthly_tth[m]);
   charts.chartTTH=new Chart(document.getElementById("chartTTH"),{type:"line",
-    data:{labels:MONTH_LABELS,datasets:[{label:"TTH预估(元)",data:vals,borderColor:"#2563eb",backgroundColor:"rgba(37,99,235,.12)",fill:true,pointRadius:4,pointBackgroundColor:"#1e3a8a",borderWidth:2.5}]},
-    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>mlab(MONTHS[c.dataIndex])+"："+fmt(c.parsed.y)+"元"}}},
-      scales:{y:{beginAtZero:true,title:{display:true,text:"TTH(元)"}},x:{title:{display:true,text:"月份"}}},elements:{line:{tension:.3}}}});
+    data:{labels:MONTH_LABELS,datasets:[{label:"TTH预估",data:vals,borderColor:"#2563eb",backgroundColor:"rgba(37,99,235,.12)",fill:true,pointRadius:4,pointBackgroundColor:"#1e3a8a",borderWidth:2.5}]},
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>mlab(MONTHS[c.dataIndex])+" TTH："+fmt(c.parsed.y)}}},
+      scales:{y:{beginAtZero:true,title:{display:true,text:"TTH"}},x:{title:{display:true,text:"月份"}}},elements:{line:{tension:.3}}},
+    plugins:[{id:"pointLabels",afterDatasetsDraw(chart){
+      const {ctx}=chart; const ds=chart.data.datasets[0].data; const meta=chart.getDatasetMeta(0);
+      ctx.save(); ctx.font="700 11px -apple-system,PingFang SC,sans-serif"; ctx.fillStyle="#1e3a8a"; ctx.textAlign="center";
+      meta.data.forEach((pt,i)=>{const v=ds[i]; if(v===0||v===null||v===undefined) return; ctx.fillText(fmt(v),pt.x,pt.y-12);});
+      ctx.restore();
+    }}]
+  });
 }
 function drawABCD(h){
   destroy("chartABCD");
@@ -371,25 +402,6 @@ function drawScatter(h){
       scales:{x:{title:{display:true,text:"出诊次数/月"}},y:{title:{display:true,text:"7月TTH(元)"},beginAtZero:true}}}});
 }
 
-function renderDiag(h){
-  const vals=MONTHS.map(m=>h.monthly_tth[m]).filter(v=>v>0);
-  const last=h.monthly_tth[h.latest_month], prev=h.monthly_tth[7];
-  const mom = prev>0? Math.round((last-prev)/prev*1000)/10 : null;
-  const mx=Math.max(...vals), mn=Math.min(...vals);
-  const amp = mn>0? Math.round((mx-mn)/mn*100):0;
-  let streak=0,dir=0; for(let i=1;i<vals.length;i++){if(vals[i]>vals[i-1]){if(dir>=0)streak++;dir=1;}else if(vals[i]<vals[i-1]){if(dir<=0)streak--;dir=-1;}else streak=0;}
-  const upMon=streak>0, downMon=streak<0;
-  document.getElementById("hDiag").innerHTML=[
-    ["7月环比变化",mom===null?"—":(mom>=0?"+":"")+mom+"%"],
-    ["3-7月净增量",fmt(h.net37)+"元"],
-    ["3-7月增长率",pct(h.growth37)],
-    ["最高月份",mlab(MONTHS[vals.indexOf(mx)])+"（"+fmt(mx)+"）"],
-    ["最低月份",mlab(MONTHS[vals.indexOf(mn)])+"（"+fmt(mn)+"）"],
-    ["连续增长/下滑月数",(upMon?"增长":downMon?"下滑":"波动")+" "+Math.abs(streak)+"月"],
-    ["波动幅度",amp+"%"],
-  ].map(i=>`<div><div class="l">${i[0]}</div><div class="v">${i[1]}</div></div>`).join("");
-  document.getElementById("hTrendBadge").innerHTML="<div style='font-size:15px;font-weight:800'>"+trendBadge(h.trend_status)+"</div><div class='muted' style='margin-top:4px'>DM一键读取经营状态，无需自行判折线</div>";
-}
 function renderTypeOut(h){
   const d=h.abcd, c=h.abcd_contrib;
   const rows=["A","B","C","D"].map(k=>`<div><div class="l">${k}类客户</div><div class="v">${d[k]}人 · 贡献${pct(c[k])}</div></div>`).join("");
@@ -399,6 +411,21 @@ function renderTypeOut(h){
     `<div><div class="l">各级人均7月TTH</div><div class="v">A ${avgT('A')} / B ${avgT('B')} / C ${avgT('C')} / D ${avgT('D')}</div></div>`+
     `<div><div class="l">各级3-7月增长占比</div><div class="v">A ${gr('A')}% / B ${gr('B')}% / C ${gr('C')}% / D ${gr('D')}%</div></div>`+
     `<div><div class="l">活跃客户销量贡献率</div><div class="v">${pct(Math.round((1-(h.abcd_contrib.D+h.abcd_contrib.C)/100)*100))}</div></div>`;
+}
+function renderConceptCard(h){
+  // 客户观念结构对比卡（第二行右侧）：当前 vs 目标，按7阶原始数字呈现
+  const cur = h.cur_dist, tgt = h.tgt_dist;
+  const stages = STAGES;
+  const curMax = Math.max(1, ...stages.map(s=>cur[s]||0), ...stages.map(s=>tgt[s]||0));
+  const curCol = document.getElementById("hConceptCur");
+  const tgtCol = document.getElementById("hConceptTgt");
+  const makeRows = (dist, kind) => stages.map(s=>{
+    const v = dist[s] || 0;
+    const w = Math.max(v/curMax*100, v>0?4:0);  // 0也不显空白条，>0 给 4px 兜底
+    return `<div class="ch-row ${kind}"><span class="nm">${s}</span><span class="bg"><span class="fg" style="width:${w}%"></span></span><span class="vl">${v}</span></div>`;
+  }).join("");
+  curCol.innerHTML = "<h4>当前</h4>" + makeRows(cur, "cur");
+  tgtCol.innerHTML = "<h4>目标</h4>" + makeRows(tgt, "tgt");
 }
 function renderConceptStat(h){
   document.getElementById("hConceptStat").innerHTML=[
