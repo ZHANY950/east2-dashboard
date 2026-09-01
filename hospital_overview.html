@@ -64,7 +64,15 @@
   .suggest h2{color:#92400e}
   .suggest ol{margin:6px 0 0;padding-left:20px} .suggest li{margin:6px 0;line-height:1.5}
   .chartbox{position:relative;height:300px}
+  .chartbox.lg{height:360px}
   .chartbox.sm{height:120px}
+  .tth-cap{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:13px}
+  .tth-cap .c{display:flex;flex-direction:column;gap:2px;padding:8px 14px;background:var(--bg);border-radius:8px;min-width:120px}
+  .tth-cap .c .l{font-size:11px;color:var(--mut)}
+  .tth-cap .c .v{font-size:17px;font-weight:800}
+  .tth-cap .c .v.blue{color:#1d4ed8}
+  .tth-cap .c .v.orange{color:#ea580c}
+  .tth-cap .c .v.green{color:#16a34a}
   .note{font-size:11px;color:var(--mut);margin-top:8px;line-height:1.5}
   .muted{color:var(--mut)}
   .hl{color:var(--red);font-weight:700}
@@ -127,8 +135,9 @@
 
     <!-- 第二行 TTH变化 -->
     <div class="row">
-      <h2>② TTH 预估变化</h2>
-      <div class="chartbox"><canvas id="chartTTH"></canvas></div>
+      <h2>② TTH 预估变化 <span class="tag" id="hTTHNote"></span></h2>
+      <div class="chartbox lg"><canvas id="chartTTH"></canvas></div>
+      <div class="tth-cap" id="hTTHCap"></div>
     </div>
 
     <!-- 第三行 客户基础与级别 -->
@@ -347,6 +356,19 @@ function renderHospital(){
 
   drawTTH(h); drawABCD(h); drawConcept(h); drawConceptBar(h); drawDept(h); drawScatter(h);
   renderBase(h); renderABCDT(h); renderDMText(h); renderSpecNote(h);
+
+  // ② TTH 说明：呈现数据源原始数（不分析）
+  const lastT = h.monthly_tth[h.latest_month];
+  const tgt9 = h.tth9_target;
+  const hasTgt9 = tgt9 && tgt9 > 0;
+  document.getElementById("hTTHNote").textContent = hasTgt9 ? "含9月目标(虚线)" : "";
+  let cap = `<div class="c"><span class="l">最新月(${mlab(h.latest_month)})TTH</span><span class="v blue">${fmt(lastT)}</span></div>`;
+  if(tgt9){
+    const gap = Math.round(tgt9 - lastT);
+    cap += `<div class="c"><span class="l">9月TTH目标</span><span class="v orange">${fmt(tgt9)}</span></div>`;
+    cap += `<div class="c"><span class="l">目标缺口</span><span class="v ${gap>=0?'green':'orange'}">${gap>=0?'+':''}${fmt(gap)}</span></div>`;
+  }
+  document.getElementById("hTTHCap").innerHTML = cap;
   renderCustTable(h); renderKeyTable(h); renderSuggest(h);
 }
 function renderBase(h){
@@ -361,41 +383,49 @@ function renderBase(h){
 
 function drawTTH(h){
   destroy("chartTTH");
-  // 3-8月实际 + 9月目标（虚线连接到8月）
-  const vals=MONTHS.map(m=>h.monthly_tth[m]);
   const hasTgt9 = h.tth9_target && h.tth9_target > 0;
+  const realVals = MONTHS.map(m=>h.monthly_tth[m]);     // 3-8月实际
   const labels = [...MONTH_LABELS];
-  const realData = [...vals];
-  // 折线数据：3-8月实线 + 8月→9月虚线（9月目标点）
-  const lineData = hasTgt9
-    ? [...realData, h.tth9_target]            // 含 9月目标点
-    : [...realData];
-  // 9月只在 hasTgt9 时显示
-  if(hasTgt9) labels.push("9月");
-  // 虚线段：8→9月。前面全用实线，最后一段 8→9 用虚线 borderDash
-  const segBorders = hasTgt9
-    ? [0,0,0,0,0,0, 4,4]   // 最后一段（8→9）虚线
-    : Array(lineData.length).fill(0);
+  const datasets = [{
+    label:"TTH预估", data:[...realVals],
+    borderColor:"#2563eb", backgroundColor:"rgba(37,99,235,.12)",
+    fill:true, pointRadius:4, pointBackgroundColor:"#1e3a8a", borderWidth:2.5, tension:.3, order:2
+  }];
+  if(hasTgt9){
+    labels.push("9月");
+    // 第二数据集：仅 8月→9月 用虚线连接（其余为 null，不画）
+    const dashed = new Array(MONTHS.length-1).fill(null);
+    dashed.push(realVals[realVals.length-1]);  // 8月（与实线共享端点）
+    dashed.push(h.tth9_target);                 // 9月目标
+    const pointR = dashed.map((v,i)=> (v!==null && i===dashed.length-1) ? 5 : 0);
+    datasets.push({
+      label:"9月TTH目标", data:dashed,
+      borderColor:"#ea580c", borderDash:[6,6],
+      pointRadius:pointR, pointBackgroundColor:"#ea580c",
+      borderWidth:2.5, tension:.3, fill:false, order:1
+    });
+  }
   charts.chartTTH=new Chart(document.getElementById("chartTTH"),{type:"line",
-    data:{labels:labels,datasets:[{label:"TTH预估",data:lineData,borderColor:"#2563eb",
-      backgroundColor:"rgba(37,99,235,.12)",
-      fill:true,pointRadius:4,pointBackgroundColor:"#1e3a8a",borderWidth:2.5,
-      segment:{borderDash:ctx=>segBorders[ctx.p1DataIndex]||undefined}}]},
-    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const i=c.dataIndex; const m=i<MONTHS.length?MONTHS[i]:9; const tag=(i===MONTHS.length||(m===9&&i===labels.length-1))?"9月TTH目标":"TTH"; return mlab(m)+" "+tag+"："+fmt(c.parsed.y);}}}},
-      scales:{y:{beginAtZero:true,title:{display:true,text:"TTH"}},x:{title:{display:true,text:"月份"}}},elements:{line:{tension:.3}}},
+    data:{labels:labels,datasets:datasets},
+    options:{plugins:{legend:{display:datasets.length>1},
+      tooltip:{callbacks:{label:c=>{const i=c.dataIndex; const m=i<MONTHS.length?MONTHS[i]:9;
+        const isTgt=(hasTgt9 && i===labels.length-1);
+        return mlab(m)+(isTgt?" 9月TTH目标":" TTH")+"："+fmt(c.parsed.y);}}}},
+      scales:{y:{beginAtZero:true,title:{display:true,text:"TTH"}},x:{title:{display:true,text:"月份"}}},
+      elements:{line:{tension:.3}}},
     plugins:[{id:"pointLabels",afterDatasetsDraw(chart){
-      const {ctx}=chart; const ds=chart.data.datasets[0].data; const meta=chart.getDatasetMeta(0);
-      ctx.save(); ctx.font="700 11px -apple-system,PingFang SC,sans-serif";
-      // 9月目标点用橙色
-      const hasTgt9c=hasTgt9;
-      meta.data.forEach((pt,i)=>{
-        const v=ds[i]; if(v===0||v===null||v===undefined) return;
-        if(hasTgt9c && i===ds.length-1){ ctx.fillStyle="#ea580c"; }
-        else{ ctx.fillStyle="#1e3a8a"; }
-        ctx.textAlign="center";
-        ctx.fillText(fmt(v),pt.x,pt.y-12);
-      });
-      ctx.restore();
+      try{
+        const {ctx}=chart; ctx.save();
+        ctx.font="700 11px -apple-system,PingFang SC,sans-serif";
+        chart.data.datasets.forEach((ds,di)=>{
+          const meta=chart.getDatasetMeta(di); if(meta.hidden) return;
+          meta.data.forEach((pt,i)=>{ const v=ds.data[i];
+            if(v===null||v===undefined||v===0) return;
+            ctx.fillStyle = di===1 ? "#ea580c" : "#1e3a8a";
+            ctx.textAlign="center"; ctx.fillText(fmt(v),pt.x,pt.y-12); });
+        });
+        ctx.restore();
+      }catch(e){}
     }}]
   });
 }
