@@ -1015,9 +1015,10 @@ i2 = html.find(P2A)
 assert i2 > 0, "页面2标记未找到"
 j2 = html.find('</section>', i2)
 assert j2 > i2, "页面2 section 结束未找到"
-NEW_P2 = """<!-- ============ 页面2：重点医院概览（v4 · 内嵌独立复盘看板） ============ -->
+HO_VER = _dt.now().strftime("%Y%m%d%H%M")
+NEW_P2 = f"""<!-- ============ 页面2：重点医院概览（v4 · 内嵌独立复盘看板） ============ -->
     <section class="page" id="page-hospital">
-      <iframe id="ho-frame" src="hospital_overview.html" title="重点医院概览复盘看板"
+      <iframe id="ho-frame" src="hospital_overview.html?v={HO_VER}" title="重点医院概览复盘看板"
         style="width:100%;height:calc(100vh - 84px);border:0;border-radius:10px;background:#fff;box-shadow:var(--shadow)"></iframe>
     </section>"""
 html = html[:i2] + NEW_P2 + html[j2 + len('</section>'):]
