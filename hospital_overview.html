@@ -120,10 +120,9 @@
 
     <!-- 第一行 经营概览 -->
     <div class="row">
-      <h2>① 医院经营概览 <span class="tag" id="hHospName"></span></h2>
+      <h2>① 医院经营概览 <span class="tag" id="hHospName"></span> <span id="hHospPilot"></span></h2>
       <div class="infog" id="hInfo" style="margin-bottom:12px"></div>
       <div class="cards" id="hKpi"></div>
-      <div class="chartbox sm"><canvas id="sparkTTH"></canvas></div>
     </div>
 
     <!-- 第二行 TTH变化 -->
@@ -149,10 +148,9 @@
     <!-- 第三行 客户基础与级别 -->
     <div class="row">
       <h2>③ 客户基础与客户级别</h2>
-      <div class="grid3">
+      <div class="grid2">
         <div><div class="cards" id="hBase" style="grid-template-columns:1fr 1fr"></div></div>
         <div><div class="chartbox"><canvas id="chartABCD"></canvas></div></div>
-        <div><div class="infog" id="hTypeOut"></div></div>
       </div>
       <div class="note">A客户数量少但贡献高→重点维护；B客户多但人均低→转A空间大；C/D多且无销量→重估客户池。</div>
     </div>
@@ -325,13 +323,18 @@ function renderHospital(){
   document.getElementById("summaryView").style.display="none";
   document.getElementById("hospView").style.display="block";
   document.getElementById("hHospName").textContent=h.name+" · "+h.level;
+  // 试点标签徽章（医院名右侧）
+  document.getElementById("hHospPilot").innerHTML = pilotBadge(h.pilot_tag);
 
-  // 信息卡
+  // 信息卡：试点标签已上移到标题旁；院内渠道开放/进货金额限制仅「正式准入」显示
   const info=[
     ["医院级别",h.level],["DM",h.dm],["MICS",h.mics],["准入状态",h.access],
-    ["院内渠道开放",h.channel||"—"],["进货金额限制",(h.money_limit||"不适用")+(h.money_limit_amt?"（"+h.money_limit_amt+"）":"")],
     ["梯队标签",h.tier||"—"],["Q4目标月均梯队医院",h.q4_target_tier||"—"],["9月TTH目标",h.tth9_target?fmt(h.tth9_target):"—"],
-    ["试点标签",pilotBadge(h.pilot_tag)||"—"]];
+  ];
+  if(h.access==="正式准入"){
+    info.push(["院内渠道开放情况",h.channel||"—"]);
+    info.push(["进货金额限制",(h.money_limit||"不适用")+(h.money_limit_amt?"（"+h.money_limit_amt+"）":"")]);
+  }
   document.getElementById("hInfo").innerHTML=info.map(i=>`<div><div class="l">${i[0]}</div><div class="v">${i[1]}</div></div>`).join("");
 
   // 核心KPI：头痛/眩晕门诊与客户数 + 标签客户数
@@ -343,8 +346,8 @@ function renderHospital(){
     ["标签客户数",fmt(h.tag_customers_sheet),"瞄准镜244","blue"],
   ].map(c=>`<div class="kpi ${c[3]}"><div class="t">${c[0]}</div><div class="v">${c[1]}</div><div class="s">${c[2]}</div></div>`).join("");
 
-  drawSpark(h); drawTTH(h); drawABCD(h); drawConcept(h); drawDept(h); drawScatter(h);
-  renderBase(h); renderTypeOut(h); renderConceptCard(h); renderConceptStat(h); renderSpecNote(h);
+  drawTTH(h); drawABCD(h); drawConcept(h); drawDept(h); drawScatter(h);
+  renderBase(h); renderConceptCard(h); renderConceptStat(h); renderSpecNote(h);
   renderCustTable(h); renderKeyTable(h); renderSuggest(h);
 }
 function renderBase(h){
@@ -357,24 +360,42 @@ function renderBase(h){
   ].map(c=>`<div class="kpi"><div class="t">${c[0]}</div><div class="v">${c[1]}</div><div class="s">${c[2]}</div></div>`).join("");
 }
 
-function drawSpark(h){
-  destroy("sparkTTH");
-  const vals=MONTHS.map(m=>h.monthly_tth[m]);
-  charts.sparkTTH=new Chart(document.getElementById("sparkTTH"),{type:"line",
-    data:{labels:MONTH_LABELS,datasets:[{data:vals,borderColor:"#2563eb",backgroundColor:"rgba(37,99,235,.1)",fill:true,pointRadius:2,borderWidth:2}]},
-    options:{plugins:{legend:{display:false},tooltip:{enabled:true}},scales:{x:{display:false},y:{display:false}},elements:{line:{tension:.35}}}});
-}
 function drawTTH(h){
   destroy("chartTTH");
+  // 3-8月实际 + 9月目标（虚线连接到8月）
   const vals=MONTHS.map(m=>h.monthly_tth[m]);
+  const hasTgt9 = h.tth9_target && h.tth9_target > 0;
+  const labels = [...MONTH_LABELS];
+  const realData = [...vals];
+  // 折线数据：3-8月实线 + 8月→9月虚线（9月目标点）
+  const lineData = hasTgt9
+    ? [...realData, h.tth9_target]            // 含 9月目标点
+    : [...realData];
+  // 9月只在 hasTgt9 时显示
+  if(hasTgt9) labels.push("9月");
+  // 虚线段：8→9月。前面全用实线，最后一段 8→9 用虚线 borderDash
+  const segBorders = hasTgt9
+    ? [0,0,0,0,0,0, 4,4]   // 最后一段（8→9）虚线
+    : Array(lineData.length).fill(0);
   charts.chartTTH=new Chart(document.getElementById("chartTTH"),{type:"line",
-    data:{labels:MONTH_LABELS,datasets:[{label:"TTH预估",data:vals,borderColor:"#2563eb",backgroundColor:"rgba(37,99,235,.12)",fill:true,pointRadius:4,pointBackgroundColor:"#1e3a8a",borderWidth:2.5}]},
-    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>mlab(MONTHS[c.dataIndex])+" TTH："+fmt(c.parsed.y)}}},
+    data:{labels:labels,datasets:[{label:"TTH预估",data:lineData,borderColor:"#2563eb",
+      backgroundColor:"rgba(37,99,235,.12)",
+      fill:true,pointRadius:4,pointBackgroundColor:"#1e3a8a",borderWidth:2.5,
+      segment:{borderDash:ctx=>segBorders[ctx.p1DataIndex]||undefined}}]},
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const i=c.dataIndex; const m=i<MONTHS.length?MONTHS[i]:9; const tag=(i===MONTHS.length||(m===9&&i===labels.length-1))?"9月TTH目标":"TTH"; return mlab(m)+" "+tag+"："+fmt(c.parsed.y);}}}},
       scales:{y:{beginAtZero:true,title:{display:true,text:"TTH"}},x:{title:{display:true,text:"月份"}}},elements:{line:{tension:.3}}},
     plugins:[{id:"pointLabels",afterDatasetsDraw(chart){
       const {ctx}=chart; const ds=chart.data.datasets[0].data; const meta=chart.getDatasetMeta(0);
-      ctx.save(); ctx.font="700 11px -apple-system,PingFang SC,sans-serif"; ctx.fillStyle="#1e3a8a"; ctx.textAlign="center";
-      meta.data.forEach((pt,i)=>{const v=ds[i]; if(v===0||v===null||v===undefined) return; ctx.fillText(fmt(v),pt.x,pt.y-12);});
+      ctx.save(); ctx.font="700 11px -apple-system,PingFang SC,sans-serif";
+      // 9月目标点用橙色
+      const hasTgt9c=hasTgt9;
+      meta.data.forEach((pt,i)=>{
+        const v=ds[i]; if(v===0||v===null||v===undefined) return;
+        if(hasTgt9c && i===ds.length-1){ ctx.fillStyle="#ea580c"; }
+        else{ ctx.fillStyle="#1e3a8a"; }
+        ctx.textAlign="center";
+        ctx.fillText(fmt(v),pt.x,pt.y-12);
+      });
       ctx.restore();
     }}]
   });
@@ -418,16 +439,6 @@ function drawScatter(h){
       scales:{x:{title:{display:true,text:"出诊次数/月"}},y:{title:{display:true,text:"7月TTH(元)"},beginAtZero:true}}}});
 }
 
-function renderTypeOut(h){
-  const d=h.abcd, c=h.abcd_contrib;
-  const rows=["A","B","C","D"].map(k=>`<div><div class="l">${k}类客户</div><div class="v">${d[k]}人 · 贡献${pct(c[k])}</div></div>`).join("");
-  const avgT=id=>{const cs=h.customers.filter(c=>c.type===id&&c.tth[7]>0);return cs.length?Math.round(cs.reduce((a,c)=>a+c.tth[7],0)/cs.length):0;};
-  const gr=id=>{const cs=h.customers.filter(c=>c.type===id);const ok=cs.filter(c=>c.growth37!==null&&c.growth37>=0).length;return cs.length?Math.round(ok/cs.length*100):0;};
-  document.getElementById("hTypeOut").innerHTML=rows+
-    `<div><div class="l">各级人均7月TTH</div><div class="v">A ${avgT('A')} / B ${avgT('B')} / C ${avgT('C')} / D ${avgT('D')}</div></div>`+
-    `<div><div class="l">各级3-7月增长占比</div><div class="v">A ${gr('A')}% / B ${gr('B')}% / C ${gr('C')}% / D ${gr('D')}%</div></div>`+
-    `<div><div class="l">活跃客户销量贡献率</div><div class="v">${pct(Math.round((1-(h.abcd_contrib.D+h.abcd_contrib.C)/100)*100))}</div></div>`;
-}
 function renderConceptCard(h){
   // 客户观念结构对比卡（第二行右侧）：当前 vs 目标，按7阶原始数字呈现
   const cur = h.cur_dist, tgt = h.tgt_dist;
